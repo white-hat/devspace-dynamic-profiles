@@ -1,0 +1,98 @@
+pods:
+  web:
+    containers:
+      - istio
+      - celery
+      - nginx
+  auth:
+    containers:
+      - apache
+      - flask
+  mail:
+    containers:
+      - postfix
+
+profile_templates:
+  remove-probes:
+    type: container
+    patches:
+      - op: add
+        path: dev.<pod>.patches
+        value:
+          op: remove
+          path: spec.containers.name=<container>.livenessProbe
+      - op: add
+        path: dev.<pod>.patches
+        value:
+          op: remove
+          path: spec.containers.name=<container>.readinessProbe
+      - op: add
+        path: dev.<pod>.patches
+        value:
+          op: remove
+          path: spec.containers.name=<container>.startupProbe
+  remove-security:
+    type: container
+    patches:
+      - op: add
+        path: dev.<pod>.patches
+        value:
+          op: remove
+          path: spec.containers.name=<container>.securityContext
+  remove-initContainers:
+    type: pod
+    patches:
+      - op: add
+        path: dev.<pod>.patches
+        value:
+          op: replace
+          path: spec.initContainers
+          value: []
+  enable-debug:
+    type: container
+    patches:
+      - op: add
+        path: dev.<pod>.patches
+        value:
+          op: replace
+          path: spec.containers.name=<container>.stdin
+          value: true
+      - op: add
+        path: dev.<pod>.patches
+        value:
+          op: replace
+          path: spec.containers.name=<container>.tty
+          value: true
+  sleep-forever:
+    type: container
+    patches:
+      - op: replace
+        path: dev.<pod>.containers.<container>.command
+        value:
+          - "sh"
+      - op: replace
+        path:  dev.<pod>.containers.<container>.args
+        value:
+              - "-c"
+              - "echo 'This container is sleeping indefinitely. It is probably being used with reverseForward by DevSpace.'; sleep 9999999"
+  remove-nodeName:
+    type: pod
+    patches:
+      - op: add
+        path: dev.<pod>.patches
+        value:
+          op: remove
+          path: spec.nodeName
+  debug-bundle:
+    type: bundle
+    parents:
+      - remove-nodeName
+      - remove-security
+      - remove-probes
+      - enable-debug
+  run-local-bundle:
+    type: bundle
+    parents:
+      - debug-bundle
+      - sleep-forever
+      - remove-initContainers

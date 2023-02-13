@@ -1,0 +1,438 @@
+name: loft
+version: v2beta1
+
+vars:
+  DEFAULT_RELEASE_NAME: $(echo "${DEVSPACE_NAMESPACE}-devspace" | cut -c -25)
+  RELEASE_NAME:
+    question: "Release name"
+    default: "${DEFAULT_RELEASE_NAME}"
+
+dev:
+  web:
+    labelSelector:
+      app.kubernetes.io/name: ${RELEASE_NAME}-web
+    containers:
+      nginx:
+        sync: []
+
+  auth:
+    labelSelector:
+      app.kubernetes.io/name: ${RELEASE_NAME}-auth
+    containers:
+      apache:
+        sync: []
+      flask:
+        sync: []
+
+profiles:
+  - name: remove-probes-web-istio
+    patches:
+      - op: add
+        path: dev.web.patches
+        value:
+          op: remove
+          path: spec.containers.name=istio.livenessProbe
+      - op: add
+        path: dev.web.patches
+        value:
+          op: remove
+          path: spec.containers.name=istio.readinessProbe
+      - op: add
+        path: dev.web.patches
+        value:
+          op: remove
+          path: spec.containers.name=istio.startupProbe
+  - name: remove-probes-web-celery
+    patches:
+      - op: add
+        path: dev.web.patches
+        value:
+          op: remove
+          path: spec.containers.name=celery.livenessProbe
+      - op: add
+        path: dev.web.patches
+        value:
+          op: remove
+          path: spec.containers.name=celery.readinessProbe
+      - op: add
+        path: dev.web.patches
+        value:
+          op: remove
+          path: spec.containers.name=celery.startupProbe
+  - name: remove-probes-web-nginx
+    patches:
+      - op: add
+        path: dev.web.patches
+        value:
+          op: remove
+          path: spec.containers.name=nginx.livenessProbe
+      - op: add
+        path: dev.web.patches
+        value:
+          op: remove
+          path: spec.containers.name=nginx.readinessProbe
+      - op: add
+        path: dev.web.patches
+        value:
+          op: remove
+          path: spec.containers.name=nginx.startupProbe
+  - name: remove-security-web-istio
+    patches:
+      - op: add
+        path: dev.web.patches
+        value:
+          op: remove
+          path: spec.containers.name=istio.securityContext
+  - name: remove-security-web-celery
+    patches:
+      - op: add
+        path: dev.web.patches
+        value:
+          op: remove
+          path: spec.containers.name=celery.securityContext
+  - name: remove-security-web-nginx
+    patches:
+      - op: add
+        path: dev.web.patches
+        value:
+          op: remove
+          path: spec.containers.name=nginx.securityContext
+  - name: remove-initContainers-web
+    patches:
+      - op: add
+        path: dev.web.patches
+        value:
+          op: replace
+          path: spec.initContainers
+          value: []
+  - name: enable-debug-web-istio
+    patches:
+      - op: add
+        path: dev.web.patches
+        value:
+          op: replace
+          path: spec.containers.name=istio.stdin
+          value: true
+      - op: add
+        path: dev.web.patches
+        value:
+          op: replace
+          path: spec.containers.name=istio.tty
+          value: true
+  - name: enable-debug-web-celery
+    patches:
+      - op: add
+        path: dev.web.patches
+        value:
+          op: replace
+          path: spec.containers.name=celery.stdin
+          value: true
+      - op: add
+        path: dev.web.patches
+        value:
+          op: replace
+          path: spec.containers.name=celery.tty
+          value: true
+  - name: enable-debug-web-nginx
+    patches:
+      - op: add
+        path: dev.web.patches
+        value:
+          op: replace
+          path: spec.containers.name=nginx.stdin
+          value: true
+      - op: add
+        path: dev.web.patches
+        value:
+          op: replace
+          path: spec.containers.name=nginx.tty
+          value: true
+  - name: sleep-forever-web-istio
+    patches:
+      - op: replace
+        path: dev.web.containers.istio.command
+        value:
+          - sh
+      - op: replace
+        path: dev.web.containers.istio.args
+        value:
+          - -c
+          - echo 'This container is sleeping indefinitely. It is probably being used with
+            reverseForward by DevSpace.'; sleep 9999999
+  - name: sleep-forever-web-celery
+    patches:
+      - op: replace
+        path: dev.web.containers.celery.command
+        value:
+          - sh
+      - op: replace
+        path: dev.web.containers.celery.args
+        value:
+          - -c
+          - echo 'This container is sleeping indefinitely. It is probably being used with
+            reverseForward by DevSpace.'; sleep 9999999
+  - name: sleep-forever-web-nginx
+    patches:
+      - op: replace
+        path: dev.web.containers.nginx.command
+        value:
+          - sh
+      - op: replace
+        path: dev.web.containers.nginx.args
+        value:
+          - -c
+          - echo 'This container is sleeping indefinitely. It is probably being used with
+            reverseForward by DevSpace.'; sleep 9999999
+  - name: remove-nodeName-web
+    patches:
+      - op: add
+        path: dev.web.patches
+        value:
+          op: remove
+          path: spec.nodeName
+  - name: debug-bundle-web-istio
+    parents:
+      - profile: remove-nodeName-web
+      - profile: remove-security-web-istio
+      - profile: remove-probes-web-istio
+      - profile: enable-debug-web-istio
+  - name: debug-bundle-web-celery
+    parents:
+      - profile: remove-nodeName-web
+      - profile: remove-security-web-celery
+      - profile: remove-probes-web-celery
+      - profile: enable-debug-web-celery
+  - name: debug-bundle-web-nginx
+    parents:
+      - profile: remove-nodeName-web
+      - profile: remove-security-web-nginx
+      - profile: remove-probes-web-nginx
+      - profile: enable-debug-web-nginx
+  - name: run-local-bundle-web-istio
+    parents:
+      - profile: debug-bundle-web-istio
+      - profile: sleep-forever-web-istio
+      - profile: remove-initContainers-web
+  - name: run-local-bundle-web-celery
+    parents:
+      - profile: debug-bundle-web-celery
+      - profile: sleep-forever-web-celery
+      - profile: remove-initContainers-web
+  - name: run-local-bundle-web-nginx
+    parents:
+      - profile: debug-bundle-web-nginx
+      - profile: sleep-forever-web-nginx
+      - profile: remove-initContainers-web
+  - name: remove-probes-auth-apache
+    patches:
+      - op: add
+        path: dev.auth.patches
+        value:
+          op: remove
+          path: spec.containers.name=apache.livenessProbe
+      - op: add
+        path: dev.auth.patches
+        value:
+          op: remove
+          path: spec.containers.name=apache.readinessProbe
+      - op: add
+        path: dev.auth.patches
+        value:
+          op: remove
+          path: spec.containers.name=apache.startupProbe
+  - name: remove-probes-auth-flask
+    patches:
+      - op: add
+        path: dev.auth.patches
+        value:
+          op: remove
+          path: spec.containers.name=flask.livenessProbe
+      - op: add
+        path: dev.auth.patches
+        value:
+          op: remove
+          path: spec.containers.name=flask.readinessProbe
+      - op: add
+        path: dev.auth.patches
+        value:
+          op: remove
+          path: spec.containers.name=flask.startupProbe
+  - name: remove-security-auth-apache
+    patches:
+      - op: add
+        path: dev.auth.patches
+        value:
+          op: remove
+          path: spec.containers.name=apache.securityContext
+  - name: remove-security-auth-flask
+    patches:
+      - op: add
+        path: dev.auth.patches
+        value:
+          op: remove
+          path: spec.containers.name=flask.securityContext
+  - name: remove-initContainers-auth
+    patches:
+      - op: add
+        path: dev.auth.patches
+        value:
+          op: replace
+          path: spec.initContainers
+          value: []
+  - name: enable-debug-auth-apache
+    patches:
+      - op: add
+        path: dev.auth.patches
+        value:
+          op: replace
+          path: spec.containers.name=apache.stdin
+          value: true
+      - op: add
+        path: dev.auth.patches
+        value:
+          op: replace
+          path: spec.containers.name=apache.tty
+          value: true
+  - name: enable-debug-auth-flask
+    patches:
+      - op: add
+        path: dev.auth.patches
+        value:
+          op: replace
+          path: spec.containers.name=flask.stdin
+          value: true
+      - op: add
+        path: dev.auth.patches
+        value:
+          op: replace
+          path: spec.containers.name=flask.tty
+          value: true
+  - name: sleep-forever-auth-apache
+    patches:
+      - op: replace
+        path: dev.auth.containers.apache.command
+        value:
+          - sh
+      - op: replace
+        path: dev.auth.containers.apache.args
+        value:
+          - -c
+          - echo 'This container is sleeping indefinitely. It is probably being used with
+            reverseForward by DevSpace.'; sleep 9999999
+  - name: sleep-forever-auth-flask
+    patches:
+      - op: replace
+        path: dev.auth.containers.flask.command
+        value:
+          - sh
+      - op: replace
+        path: dev.auth.containers.flask.args
+        value:
+          - -c
+          - echo 'This container is sleeping indefinitely. It is probably being used with
+            reverseForward by DevSpace.'; sleep 9999999
+  - name: remove-nodeName-auth
+    patches:
+      - op: add
+        path: dev.auth.patches
+        value:
+          op: remove
+          path: spec.nodeName
+  - name: debug-bundle-auth-apache
+    parents:
+      - profile: remove-nodeName-auth
+      - profile: remove-security-auth-apache
+      - profile: remove-probes-auth-apache
+      - profile: enable-debug-auth-apache
+  - name: debug-bundle-auth-flask
+    parents:
+      - profile: remove-nodeName-auth
+      - profile: remove-security-auth-flask
+      - profile: remove-probes-auth-flask
+      - profile: enable-debug-auth-flask
+  - name: run-local-bundle-auth-apache
+    parents:
+      - profile: debug-bundle-auth-apache
+      - profile: sleep-forever-auth-apache
+      - profile: remove-initContainers-auth
+  - name: run-local-bundle-auth-flask
+    parents:
+      - profile: debug-bundle-auth-flask
+      - profile: sleep-forever-auth-flask
+      - profile: remove-initContainers-auth
+  - name: remove-probes-mail-postfix
+    patches:
+      - op: add
+        path: dev.mail.patches
+        value:
+          op: remove
+          path: spec.containers.name=postfix.livenessProbe
+      - op: add
+        path: dev.mail.patches
+        value:
+          op: remove
+          path: spec.containers.name=postfix.readinessProbe
+      - op: add
+        path: dev.mail.patches
+        value:
+          op: remove
+          path: spec.containers.name=postfix.startupProbe
+  - name: remove-security-mail-postfix
+    patches:
+      - op: add
+        path: dev.mail.patches
+        value:
+          op: remove
+          path: spec.containers.name=postfix.securityContext
+  - name: remove-initContainers-mail
+    patches:
+      - op: add
+        path: dev.mail.patches
+        value:
+          op: replace
+          path: spec.initContainers
+          value: []
+  - name: enable-debug-mail-postfix
+    patches:
+      - op: add
+        path: dev.mail.patches
+        value:
+          op: replace
+          path: spec.containers.name=postfix.stdin
+          value: true
+      - op: add
+        path: dev.mail.patches
+        value:
+          op: replace
+          path: spec.containers.name=postfix.tty
+          value: true
+  - name: sleep-forever-mail-postfix
+    patches:
+      - op: replace
+        path: dev.mail.containers.postfix.command
+        value:
+          - sh
+      - op: replace
+        path: dev.mail.containers.postfix.args
+        value:
+          - -c
+          - echo 'This container is sleeping indefinitely. It is probably being used with
+            reverseForward by DevSpace.'; sleep 9999999
+  - name: remove-nodeName-mail
+    patches:
+      - op: add
+        path: dev.mail.patches
+        value:
+          op: remove
+          path: spec.nodeName
+  - name: debug-bundle-mail-postfix
+    parents:
+      - profile: remove-nodeName-mail
+      - profile: remove-security-mail-postfix
+      - profile: remove-probes-mail-postfix
+      - profile: enable-debug-mail-postfix
+  - name: run-local-bundle-mail-postfix
+    parents:
+      - profile: debug-bundle-mail-postfix
+      - profile: sleep-forever-mail-postfix
+      - profile: remove-initContainers-mail

@@ -1,0 +1,135 @@
+name: loft
+version: v2beta1
+
+vars:
+  RELEASE_NAME:
+    question: "Release name"
+    # default expands variables!
+    default: $(echo "${DEVSPACE_NAMESPACE}-devspace" | cut -c -25)
+
+dev:
+  web:
+    labelSelector:
+      app.kubernetes.io/name: ${RELEASE_NAME}-web
+    containers:
+      istio:
+        sync: []
+      celery:
+        sync: []
+      nginx:
+        sync: []
+
+  auth:
+    labelSelector:
+      app.kubernetes.io/name: ${RELEASE_NAME}-auth
+    containers:
+      apache:
+        sync: []
+      flask:
+        sync: []
+
+  mail:
+    labelSelector:
+      app.kubernetes.io/name: ${RELEASE_NAME}-auth
+    containers:
+      postfix:
+        sync: []
+
+profile_templates:
+  remove-probes:
+    type: container
+    patches:
+      - op: add
+        # <pod> will be replaced by template.pod
+        path: dev.<pod>.patches
+        value:
+          op: remove
+          # <container> will be replaced by template.container
+          path: spec.containers.name=<container>.livenessProbe
+      - op: add
+        path: dev.<pod>.patches
+        value:
+          op: remove
+          path: spec.containers.name=<container>.readinessProbe
+      - op: add
+        path: dev.<pod>.patches
+        value:
+          op: remove
+          path: spec.containers.name=<container>.startupProbe
+  remove-security:
+    type: container
+    patches:
+      - op: add
+        path: dev.<pod>.patches
+        value:
+          op: remove
+          path: spec.containers.name=<container>.securityContext
+  remove-initContainers:
+    type: pod
+    patches:
+      - op: add
+        path: dev.<pod>.patches
+        value:
+          op: replace
+          path: spec.initContainers
+          value: []
+  enable-debug:
+    type: container
+    patches:
+      - op: add
+        path: dev.<pod>.patches
+        value:
+          op: replace
+          path: spec.containers.name=<container>.stdin
+          value: true
+      - op: add
+        path: dev.<pod>.patches
+        value:
+          op: replace
+          path: spec.containers.name=<container>.tty
+          value: true
+  sleep-forever:
+    type: container
+    patches:
+      - op: replace
+        path: dev.<pod>.containers.<container>.command
+        value:
+          - "sh"
+      - op: replace
+        path: dev.<pod>.containers.<container>.args
+        value:
+          - "-c"
+          - "echo 'This container is sleeping indefinitely. It is probably being used with reverseForward by DevSpace.'; sleep 9999999"
+  remove-nodeName:
+    type: pod
+    patches:
+      - op: add
+        path: dev.<pod>.patches
+        value:
+          op: remove
+          path: spec.nodeName
+  debug-bundle:
+    type: bundle
+    parents:
+      - remove-nodeName
+      - remove-security
+      - remove-probes
+      - enable-debug
+  run-local-bundle:
+    type: bundle
+    parents:
+      - debug-bundle
+      - sleep-forever
+      - remove-initContainers
+
+profiles:
+  run-local-bundle-mail-postfix:
+    templates:
+      - run-local-bundle
+    pod: mail
+    container: postfix
+  debug-bundle-auth-apache:
+    templates:
+      - debug-bundle
+    pod: auth
+    container: apache
